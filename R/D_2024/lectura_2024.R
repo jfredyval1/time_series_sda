@@ -4,10 +4,12 @@
 # Librerías requeridas
 library(readxl)
 library(dplyr)
+library(lubridate)
 # Limpiar área de trabajo
 rm(list = ls())
 # Lectura de hojas en archivo de interés
-hojas <- excel_sheets('/media/F/DISPOSITIVOS_USUARIOS_2025/DATOS 2024 DISPOSIVOS CONCESIONADOS.xlsx')
+path_datos <- '/media/disk1/DISPOSITIVOS_USUARIOS_2025/DATOS 2024 DISPOSIVOS CONCESIONADOS.xlsx'
+hojas <- excel_sheets(path_datos)
 # Eliminar hoja sin datos
 hojas <- hojas[!hojas == 'Hoja1']
 
@@ -20,7 +22,7 @@ datos_2024 <- list()
 # Vector que guarda nombre de encabezados 
 encabezado <- vector()
 for (i in 1:length(hojas)) {
-  datos_2024[[hojas[i]]] <- read_excel("/media/F/DISPOSITIVOS_USUARIOS_2025/DATOS 2024 DISPOSIVOS CONCESIONADOS.xlsx", 
+  datos_2024[[hojas[i]]] <- read_excel(path_datos, 
                                                     sheet = hojas[i], skip = row_del[i])
   # Verifivador de lectura
   print(paste('Se ha leido la hoja: ',hojas[i]))
@@ -42,10 +44,10 @@ fecha <- c("Date","Fecha",
 # Nivel
 nivel <- c("LEVEL","Nivel [m]","Nivel de agua (metro ToC)","Nivel","N I V E L",
            "NIVEL","Nivel hidrodinámico (m)","WaterLevel (MTS)","Nivel hidrodinamico")
-# Presión barométrica
-presion <- c("Presión (mH2O)","P1 \r\r\n[bar]",
-             "PBaro \r\r\n[bar]","TBaro \r\r\n[°C]","Pd (P1-PBaro) \r\r\n[bar]",
-             "Presión total (mH2O)","Pressure (MH2O)","Pressure","mH20 (F) \r\r\n[m]")
+# Presión barométrica MH20
+presion_mh20 <- c("Presión (mH2O)","TBaro \r\r\n[°C]","Presión total (mH2O)","Pressure (MH2O)","Pressure","mH20 (F) \r\r\n[m]")
+# Presion PBaro
+presion_pb <- c("P1 \r\r\n[bar]","PBaro \r\r\n[bar]","Pd (P1-PBaro) \r\r\n[bar]")
 # Temperatura
 temp <- c("TEMPERATURE","Tempertura ºC (si aplica)","Temperatura (Celsius)",
           "Temperatura ºC (si aplica)", "Temperatura (ºC)",
@@ -55,11 +57,19 @@ temp <- c("TEMPERATURE","Tempertura ºC (si aplica)","Temperatura (Celsius)",
 cond <- c("Conductividad (µS/cm) - Si aplica","CONDUCTIVITY","Conductividad",
           "C O N D U C T I V I D A D","Conductivity Tc \r\r\n[mS/cm]",
           "Conductivity raw \r\r\n[mS/cm]","Conductividad (µS/cm) - \r\nSi aplica")
-# Vector con nombres estandarizados
-nomb_estandar <- c('hora'=0,'fecha'=1,'prof_nivel'=2,'temperatura'=3,'conductividad'=4,'presion'=5)
+nombres_originales <- list('hora'=hora,
+                           'fecha'=fecha,
+                           'nivel'=nivel,
+                           'temp'=temp,
+                           'cond'=cond,
+                           'presion_mh20'=presion_mh20,
+                           'presion_pb'=presion_pb)
 #
 # renombrar cambos en df que presentan duplicidad en nombres
 names(datos_2024[['pz-11-012']])[7] <- 'temp_baro'
+names(datos_2024[['pz-11-012']])[10] <- 'conductividad_cruda_NA'
+names(datos_2024[['pz-11-012']])[4] <- 'presion_b1_preguntar'
+names(datos_2024[['pz-11-012']])[6] <- 'presion_b1_preguntar_2'
 # Cambiar por nombre estandar en lod df dentro de la lista
 # Definir función para el renombrado
 renombrado <- function(variable_nuevo, nombre_originales) {
@@ -79,9 +89,62 @@ renombrado <- function(variable_nuevo, nombre_originales) {
   }
 }
 # Renombrar
-renombrado(variable = 'hora',nombre_original = hora)
-renombrado(variable = 'fecha',nombre_original = fecha)
-renombrado(variable = 'profundidad_nivel',nombre_original = nivel)
-renombrado(variable = 'presion_baro',nombre_original = presion)
-renombrado(variable = 'temperatura',nombre_original = temp)
-renombrado(variable = 'conductividad',nombre_original = cond)
+# Vector con nombres estandarizados
+nomb_estandar <- c('hora','fecha','profundidad_nivel','temperatura','conductividad','presion_total_mh20','presion_parcial_pb')
+
+#renombrado(variable_nuevo = 'hora',nombre_originales = nombres_originales[]])
+
+for (i in 1:length(nombres_originales)) {
+  variable <-nomb_estandar[i]
+  vec_origen <- unlist(nombres_originales[i],recursive = T,use.names = F)
+  renombrado(variable_nuevo =  variable,nombre_original = vec_origen)
+}
+#
+# Filtrar y completar
+# Filtrar solo las columnas que están en noms_est
+for (i in names(datos_2024)) {
+  # Seleccionar las columnas definidicas
+  datos_2024[[i]] <-  datos_2024[[i]] %>% select(any_of(nomb_estandar))
+  # Agregar las columnas que falten con valores NA
+  faltantes <- setdiff(nomb_estandar, names(datos_2024[[i]]))
+  datos_2024[[i]][faltantes] <- NA
+  # Agregar nombre de pozo
+  datos_2024[[i]]$id_pozo <- gsub(' ','',i)
+}
+
+# Conocer número total de días monitoreoados en 2024
+
+for (i in 1:length(datos_2024)) {
+  dias <-round(dim(datos_2024[[i]])[1] / 24,1)
+  print(paste('El pozo',names(datos_2024)[i], 'tuvo', dias, 'completos monitoreado'))
+}
+#
+# Estandarizar tipos de datos
+#
+# Hora
+# Aplicar conversión a fehca en datos de pozos en particular
+datos_2024[["pz-11-0140"]]$hora <- parse_date_time(datos_2024[["pz-11-0140"]]$hora, "I:M:S p")
+# Pozo 10-0027
+# Reemplazar "a. m"/"p. m" por "AM"/"PM" para que lubridate lo entienda
+hora_texto <- gsub("a\\. m", "AM", datos_2024[["pz-10-0027"]]$hora)
+hora_texto <- gsub("p\\. m", "PM", hora_texto)
+# Parsear la hora
+datos_2024[["pz-10-0027"]]$hora <- parse_date_time(hora_texto, orders = "I:M:S p")
+
+#
+# Estandar Hora: 0 a 24
+#
+for (pozo in hojas) {
+  # Incorporar defenza en caso de eror de formato para convertir la hora
+  tryCatch({
+    # Intentar la conversión directamente
+    datos_2024[[pozo]]$hora_1 <- hour(datos_2024[[pozo]]$hora)
+    
+  }, error = function(e) {
+    # Si ocurre el error de formato, asignar NA y continuar
+    if (grepl("formato estándar inequívoco", e$message)) {
+      warning(paste("Error de formato de fecha/hora en pozo", pozo, "- Usando NA"))
+      datos_2024[[pozo]]$hora_1 <- NA  # Asignar NA y continuar
+    }
+  })
+}
