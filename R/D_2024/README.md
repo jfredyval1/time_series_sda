@@ -80,8 +80,6 @@ Una vez estos pasos previos han sido exitosamente desarrollados se inicia el seg
 
 Llama la atención que, aunque los datos son del año 2024, muchos superar con creces el número de días de un año, lo que sugiere de entrada una frecuencia de medición *infrahoraria* para algunos pozos. Esto se plantea como hipotesis a verificar.
 
-
-
 Se requieren correcciones para estimar correctamente la hora sobre el pozo `pz-08-0023`, además de ello el pozo `pz-11-0190` registra datos por fecha pero no por hora de captura, generando una seria dififucltad para obtener este dato
 
 - [ ] Estandarización de formato para las variables agrupadas
@@ -89,3 +87,11 @@ Se requieren correcciones para estimar correctamente la hora sobre el pozo `pz-0
   - [x] Estandarizar hora :1 a 24
   
   - [ ] Estandarizar fecha: Día-Mes-Año
+
+
+
+## Exploración de valores
+
+Si bien ha sido posible inficar la estructura de los datos, es decir, contruir un unico dataframe con número y nombre igual de variables, ha sido evidente que dentro de las columnas originales existe una heterogeneidad de valores amplia, en algunos casos una misma columna de fecha puede contener formatos `DMY` y `YMD`, hecho que dificulta la esatndarización de valores y ha generado desafios para la contrucción funcional de la rutina de código.
+
+ Esta fase contunúa en desarrollo y exploración.

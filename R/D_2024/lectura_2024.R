@@ -8,7 +8,7 @@ library(lubridate)
 # Limpiar área de trabajo
 rm(list = ls())
 # Lectura de hojas en archivo de interés
-path_datos <- '/media/disk1/DISPOSITIVOS_USUARIOS_2025/DATOS 2024 DISPOSIVOS CONCESIONADOS.xlsx'
+path_datos <- '/media/F/DISPOSITIVOS_USUARIOS_2025/DATOS 2024 DISPOSIVOS CONCESIONADOS.xlsx'
 hojas <- excel_sheets(path_datos)
 # Eliminar hoja sin datos
 hojas <- hojas[!hojas == 'Hoja1']
@@ -17,18 +17,33 @@ hojas <- hojas[!hojas == 'Hoja1']
 
 row_del <-c(0,21,21,13,0,21,21,0,3,8,9,21,21,9,5,0,0,0,0,21,30,21,21,21,21,21,21,21,21,21,21,21,21)
 
-
+# Crear lista vacia para almacenar los datos
 datos_2024 <- list()
 # Vector que guarda nombre de encabezados 
 encabezado <- vector()
 for (i in 1:length(hojas)) {
-  datos_2024[[hojas[i]]] <- read_excel(path_datos, 
-                                                    sheet = hojas[i], skip = row_del[i])
-  # Verifivador de lectura
-  print(paste('Se ha leido la hoja: ',hojas[i]))
+  # Estandarizar nombres de df
+  name = gsub(' ', '', hojas[i])
+  datos_2024[[name]] <- read_excel(path_datos,
+                                   sheet = hojas[i], 
+                                   skip = row_del[i])
+  
+  # Reemplazar ',' por '.' en todas las columnas
+  datos_2024[[name]] <- datos_2024[[name]] |> 
+    mutate(across(everything(), ~ {
+      if (is.character(.x)) gsub(",", ".", .x)
+      else if (is.factor(.x)) gsub(",", ".", as.character(.x))
+      else .x
+    }))
+  
+  # Verificador de lectura
+  print(paste('Se ha leído la hoja: ', name))
+  
   # Unificar en un vector los nombres de los encabezados
-  encabezado <- append(encabezado,names(datos_2024[[hojas[i]]]))
+  encabezado <- append(encabezado, names(datos_2024[[name]]))
 }
+# Reemplazar hojojas por nombres estandarizados
+hojas <- names(datos_2024)
 # Definir ecabezados unicos eliminando repeticiones
 encabezado <- unique(encabezado)
 #
@@ -109,18 +124,20 @@ for (i in names(datos_2024)) {
   faltantes <- setdiff(nomb_estandar, names(datos_2024[[i]]))
   datos_2024[[i]][faltantes] <- NA
   # Agregar nombre de pozo
-  datos_2024[[i]]$id_pozo <- gsub(' ','',i)
+  datos_2024[[i]]$id_pozo <- i
+  
 }
 
 # Conocer número total de días monitoreoados en 2024
 
 for (i in 1:length(datos_2024)) {
   dias <-round(dim(datos_2024[[i]])[1] / 24,1)
-  print(paste('El pozo',names(datos_2024)[i], 'tuvo', dias, 'completos monitoreado'))
+  print(paste('El pozo',names(datos_2024)[i], 'tuvo', dias, 'dias completos monitoreado'))
 }
 #
 # Estandarizar tipos de datos
 #
+
 # Hora
 # Aplicar conversión a fehca en datos de pozos en particular
 datos_2024[["pz-11-0140"]]$hora <- parse_date_time(datos_2024[["pz-11-0140"]]$hora, "I:M:S p")
@@ -130,7 +147,21 @@ hora_texto <- gsub("a\\. m", "AM", datos_2024[["pz-10-0027"]]$hora)
 hora_texto <- gsub("p\\. m", "PM", hora_texto)
 # Parsear la hora
 datos_2024[["pz-10-0027"]]$hora <- parse_date_time(hora_texto, orders = "I:M:S p")
-
+# Estandarizar fecha en ymd
+datos_2024[["pz-10-0027"]]$fecha <- dmy(datos_2024[["pz-10-0027"]]$fecha)
+# Modificación al pozo pz-08-0023
+parsear_hora_colombiana <- function(fechas) {
+  # Reemplazar espacios invisibles, si los hubiera
+  fechas <- gsub("[\u00a0\u202f]", " ", fechas)
+  
+  # Reemplazar "a. m." y "p. m." por "AM"/"PM"
+  fechas <- gsub("a\\. m\\.", "AM", fechas, ignore.case = TRUE)
+  fechas <- gsub("p\\. m\\.", "PM", fechas, ignore.case = TRUE)
+  
+  # Parsear con lubridate
+  parse_date_time(fechas, orders = "d/m/Y I:M:S p")
+}
+datos_2024[["pz-08-0023"]]$hora<-parsear_hora_colombiana(datos_2024[["pz-08-0023"]]$hora)
 #
 # Estandar Hora: 0 a 24
 #
@@ -147,4 +178,187 @@ for (pozo in hojas) {
       datos_2024[[pozo]]$hora_1 <- NA  # Asignar NA y continuar
     }
   })
+  # Verificar horas estandarizadas
+  print(paste("Horas en pozo", pozo, ":", max(datos_2024[[pozo]]$hora_1)))
 }
+#
+# Estandar Fecha
+# 
+for (pozo in hojas) {
+  # Se fecha está vacio NA, llenarlo con hora
+  if (all(is.na(datos_2024[[pozo]]$fecha))) {
+    datos_2024[[pozo]]$fecha <- datos_2024[[pozo]]$hora
+  }
+  # Incorporar defenza en caso de eror de formato para convertir la hora
+  tryCatch({
+    # Intentar la conversión directamente
+    datos_2024[[pozo]]$fecha_1 <- date(datos_2024[[pozo]]$fecha)
+    
+  }, error = function(e) {
+    # Si ocurre el error de formato, asignar NA y continuar
+    if (grepl("formato estándar inequívoco", e$message)) {
+      warning(paste("Error de formato de fecha/hora en pozo", pozo, "- Usando NA"))
+      datos_2024[[pozo]]$fecha_1 <- NA  # Asignar NA y continuar
+    }
+  })
+  # Verificar imprimiendo algunas fechas
+  print(paste("Fechas en pozo", pozo, ":", min(datos_2024[[pozo]]$fecha_1)))
+}
+#Corregir error en 11-0217
+#
+datos_2024[["pz-11-0217"]]$fecha_1 <- date(datos_2024[["pz-11-0217"]]$fecha_1)
+# Estandarizar temperatura
+for (pozo in hojas) {
+  # Reemplazar ',' por '.' en caso de ser tipo caracter
+  if (!is.na(datos_2024[[pozo]]$temperatura[1])) {
+    datos_2024[[pozo]]$temperatura <- gsub(",", ".", datos_2024[[pozo]]$temperatura)
+  }
+  tryCatch({
+    # Intentar la conversión directamente
+    datos_2024[[pozo]]$temperatura_1 <- as.numeric(datos_2024[[pozo]]$temperatura)
+    
+  }, error = function(e) {
+    # Si ocurre el error de formato, asignar NA y continuar
+    if (grepl("formato estándar inequívoco", e$message)) {
+      warning(paste("Error de formato de fecha/hora en pozo", pozo, "- Usando NA"))
+      datos_2024[[pozo]]$temperatura_1 <- NA  # Asignar NA y continuar
+    }
+  })
+  # Verificar imprimiendo algunas fechas
+  print(paste("Temperaturas en pozo", pozo, ":", head(datos_2024[[pozo]]$temperatura_1,1)))
+}
+# Estandarizar nivel
+for (pozo in hojas) {
+  # Reemplazar ',' por '.' en caso de ser tipo caracter
+  if (!is.na(datos_2024[[pozo]]$profundidad_nivel[1])) {
+    datos_2024[[pozo]]$profundidad_nivel <- gsub(",", ".", datos_2024[[pozo]]$profundidad_nivel)
+  }
+  # Incorporar defenza en caso de eror de formato para convertir la hora
+  tryCatch({
+    # Intentar la conversión directamente
+    datos_2024[[pozo]]$profundidad_nivel_1 <- as.numeric(datos_2024[[pozo]]$profundidad_nivel)
+    
+  }, error = function(e) {
+    # Si ocurre el error de formato, asignar NA y continuar
+    if (grepl("formato estándar inequívoco", e$message)) {
+      warning(paste("Error de formato de fecha/hora en pozo", pozo, "- Usando NA"))
+      datos_2024[[pozo]]$profundidad_nivel_1 <- NA  # Asignar NA y continuar
+    }
+  })
+  # Verificar imprimiendo algunas fechas
+  print(paste("Niveles en pozo", pozo, ":", median(datos_2024[[pozo]]$profundidad_nivel_1)))
+}
+# Estandarizar conductividad
+for (pozo in hojas) {
+  # Reemplazar ',' por '.' en caso de ser tipo caracter
+  if (!is.na(datos_2024[[pozo]]$conductividad[1])) {
+    datos_2024[[pozo]]$conductividad <- gsub(",", ".", datos_2024[[pozo]]$conductividad)
+  }
+  # Incorporar defenza en caso de eror de formato para convertir la hora
+  tryCatch({
+    # Intentar la conversión directamente
+    datos_2024[[pozo]]$conductividad_1 <- as.numeric(datos_2024[[pozo]]$conductividad)
+    
+  }, error = function(e) {
+    # Si ocurre el error de formato, asignar NA y continuar
+    if (grepl("formato estándar inequívoco", e$message)) {
+      warning(paste("Error de formato de fecha/hora en pozo", pozo, "- Usando NA"))
+      datos_2024[[pozo]]$conductividad_1 <- NA  # Asignar NA y continuar
+    }
+  })
+  # Verificar imprimiendo algunas fechas
+  print(paste("Conductividades en pozo", pozo, ":", head(datos_2024[[pozo]]$conductividad_1,1)))
+}
+# Estandarizar presion_mh20
+for (pozo in hojas) {
+  # Reemplazar ',' por '.' en caso de ser tipo caracter
+  if (!is.na(datos_2024[[pozo]]$presion_total_mh20[1])) {
+    datos_2024[[pozo]]$presion_total_mh20 <- gsub(",", ".", datos_2024[[pozo]]$presion_total_mh20)
+  }
+  # Incorporar defenza en caso de eror de formato para convertir la hora
+  tryCatch({
+    # Intentar la conversión directamente
+    datos_2024[[pozo]]$presion_total_mh20_1 <- as.numeric(datos_2024[[pozo]]$presion_total_mh20)
+    
+  }, error = function(e) {
+    # Si ocurre el error de formato, asignar NA y continuar
+    if (grepl("formato estándar inequívoco", e$message)) {
+      warning(paste("Error de formato de fecha/hora en pozo", pozo, "- Usando NA"))
+      datos_2024[[pozo]]$presion_total_mh20_1 <- NA  # Asignar NA y continuar
+    }
+  })
+  # Verificar imprimiendo algunas fechas
+  print(paste("Presiones mh20 en pozo", pozo, ":", head(datos_2024[[pozo]]$presion_total_mh20_1,1)))
+}
+# Estandarizar presion_pb
+for (pozo in hojas) {
+  # Reemplazar ',' por '.' en caso de ser tipo caracter
+  if (!is.na(datos_2024[[pozo]]$presion_parcial_pb[1])) {
+    datos_2024[[pozo]]$presion_parcial_pb <- gsub(",", ".", datos_2024[[pozo]]$presion_parcial_pb)
+  }
+  # Incorporar defenza en caso de eror de formato para convertir la hora
+  tryCatch({
+    # Intentar la conversión directamente
+    datos_2024[[pozo]]$presion_parcial_pb_1 <- as.numeric(datos_2024[[pozo]]$presion_parcial_pb)
+    
+  }, error = function(e) {
+    # Si ocurre el error de formato, asignar NA y continuar
+    if (grepl("formato estándar inequívoco", e$message)) {
+      warning(paste("Error de formato de fecha/hora en pozo", pozo, "- Usando NA"))
+      datos_2024[[pozo]]$presion_parcial_pb_1 <- NA  # Asignar NA y continuar
+    }
+  })
+  # Verificar imprimiendo algunas fechas
+  print(paste("Presiones pb en pozo", pozo, ":", head(datos_2024[[pozo]]$presion_parcial_pb_1,1)))
+}
+#
+# Finalizada la estandarización es posible reemplazar, eliminar variables temporales, y unificar
+#
+for (pozo in hojas) {
+  # Reemplazar variables temporales por estandarizadas
+  datos_2024[[pozo]]$hora <- datos_2024[[pozo]]$hora_1
+  datos_2024[[pozo]]$fecha <- datos_2024[[pozo]]$fecha_1
+  datos_2024[[pozo]]$temperatura <- datos_2024[[pozo]]$temperatura_1
+  datos_2024[[pozo]]$profundidad_nivel <- datos_2024[[pozo]]$profundidad_nivel_1
+  datos_2024[[pozo]]$conductividad <- datos_2024[[pozo]]$conductividad_1
+  datos_2024[[pozo]]$presion_total_mh20 <- datos_2024[[pozo]]$presion_total_mh20_1
+  datos_2024[[pozo]]$presion_parcial_pb <- datos_2024[[pozo]]$presion_parcial_pb_1
+  # Eliminar variables temporales
+  datos_2024[[pozo]] <- select(datos_2024[[pozo]], -ends_with("_1"))
+}
+## Dividir valores de pozo pz-11-0140
+datos_2024[["pz-11-0140"]]$profundidad_nivel <- datos_2024[["pz-11-0140"]]$profundidad_nivel/1000
+datos_2024[["pz-11-0140"]]$temperatura <- datos_2024[["pz-11-0140"]]$temperatura/1000
+datos_2024[["pz-11-0140"]]$presion_total_mh20 <- datos_2024[["pz-11-0140"]]$presion_total_mh20/1000
+
+# Unificar todos los df en uno solo
+datos_2024_unificado <- do.call(rbind, datos_2024)
+# Filtrar
+datos_2024_unificado<-datos_2024_unificado[datos_2024_unificado$fecha >2023,]
+datos_2024_unificado<-datos_2024_unificado[datos_2024_unificado$id_pozo != 'pz-01-0004',]
+summary(datos_2024_unificado)
+
+#
+# Pruebas de unificación de formatos
+#
+
+# Agrupar por mes y pozo, calcular promedio
+datos_mensuales <- datos_2024_unificado %>%
+  filter(!is.na(profundidad_nivel)) %>%
+  mutate(mes = floor_date(fecha, "week")) %>%
+  group_by(id_pozo, mes) %>%
+  summarise(profundidad_prom = mean(profundidad_nivel), .groups = "drop")
+
+datos_mensuales <- datos_mensuales[datos_mensuales$id_pozo == 'pz-11-0190',]
+# Graficar
+ggplot(datos_mensuales, aes(x = mes, y = profundidad_prom *-1, color = id_pozo)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Variación Mensual del Nivel Freático por Pozo",
+    x = "Mes",
+    y = "Profundidad Promedio (m)",
+    color = "Pozo"
+  ) +
+  scale_y_reverse() +  # profundidad hacia abajo
+  theme_minimal() +
+  theme(legend.position = "bottom")
