@@ -108,4 +108,4 @@ A pesar de ello, se ha conseguido generar resultados preliminares que permiten d
 
 ---
 
-![](/media/DiscoA/GitLab/time_series_sda/PNG/Nivel_2024.png)
+![](../../PNG/Nivel_2024.png)
