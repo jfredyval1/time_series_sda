@@ -7,7 +7,7 @@
 lectura_excel <- function(ruta_archivo, filas_a_ignorar = 0,hoja_ignorar = NULL) {
   hojas <- excel_sheets(ruta_archivo)
   # Eliminar hoja sin datos
-  hojas <- hojas[!hojas == hoja_ignorar] # En caso de existir hojas a ignorar
+  hojas <- hojas[!hojas %in% hoja_ignorar] # En caso de existir hojas a ignorar
   # Crear lista vacía para almacenar los datos
   datos <- list()
   # Vector que guarda nombre de encabezados 

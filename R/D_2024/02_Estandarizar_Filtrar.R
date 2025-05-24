@@ -24,18 +24,21 @@ fecha <- c("Date","Fecha",
            "Datetime \r\r\n[UTC]","FECHA")
 # Nivel
 nivel <- c("LEVEL","Nivel [m]","Nivel de agua (metro ToC)","Nivel","N I V E L",
-           "NIVEL","Nivel hidrodinámico (m)","WaterLevel (MTS)","Nivel hidrodinamico")
+           "NIVEL","Nivel hidrodinámico (m)","WaterLevel (MTS)","Nivel hidrodinamico","Nivel de agua en 
+respecto a ToC (metro)")
 # Temperatura
 temp <- c("TEMPERATURE","Tempertura ºC (si aplica)","Temperatura (Celsius)",
           "Temperatura ºC (si aplica)", "Temperatura (ºC)",
           "Temperatura (°C)","Temperatura (Tº)","Temperature (C°)","Temperature",
-          "TOB1 \r\r\n[°C]")
+          "TOB1 \r\r\n[°C]","Temperatura 
+(Celsius)")
 # Conductividad
 cond <- c("Conductividad (µS/cm) - Si aplica","CONDUCTIVITY","Conductividad",
           "C O N D U C T I V I D A D","Conductivity Tc \r\r\n[mS/cm]",
           "Conductivity raw \r\r\n[mS/cm]","Conductividad (µS/cm) - \r\nSi aplica")
 # Presión barométrica MH20
-presion_mh20 <- c("Presión (mH2O)","TBaro \r\r\n[°C]","Presión total (mH2O)","Pressure (MH2O)","Pressure","mH20 (F) \r\r\n[m]")
+presion_mh20 <- c("Presión (mH2O)","TBaro \r\r\n[°C]","Presión total (mH2O)","Pressure (MH2O)","Pressure","mH20 (F) \r\r\n[m]","Presión 
+(mH2O)")
 # Presion PBaro
 presion_pb <- c("P1 \r\r\n[bar]","PBaro \r\r\n[bar]","Pd (P1-PBaro) \r\r\n[bar]")
 
